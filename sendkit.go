@@ -11,7 +11,7 @@ import (
 	"os"
 )
 
-const defaultBaseURL = "https://api.sendkit.com"
+const defaultBaseURL = "https://api.sendkit.dev"
 
 // Client is the SendKit API client.
 type Client struct {
