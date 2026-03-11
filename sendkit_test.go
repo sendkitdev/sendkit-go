@@ -54,8 +54,8 @@ func TestNewClient_CustomBaseURL(t *testing.T) {
 
 func TestEmails_Send(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/emails" {
-			t.Errorf("expected path /v1/emails, got %s", r.URL.Path)
+		if r.URL.Path != "/emails" {
+			t.Errorf("expected path /emails, got %s", r.URL.Path)
 		}
 		if r.Method != "POST" {
 			t.Errorf("expected POST, got %s", r.Method)
@@ -131,8 +131,8 @@ func TestEmails_Send_SnakeCaseFields(t *testing.T) {
 
 func TestEmails_SendMime(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/emails/mime" {
-			t.Errorf("expected path /v1/emails/mime, got %s", r.URL.Path)
+		if r.URL.Path != "/emails/mime" {
+			t.Errorf("expected path /emails/mime, got %s", r.URL.Path)
 		}
 
 		body, _ := io.ReadAll(r.Body)

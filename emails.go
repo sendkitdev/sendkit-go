@@ -53,7 +53,7 @@ type SendMimeEmailResponse struct {
 
 // Send sends a structured email via the SendKit API.
 func (s *EmailsService) Send(ctx context.Context, params *SendEmailParams) (*SendEmailResponse, error) {
-	body, err := s.client.doRequest(ctx, "POST", "/v1/emails", params)
+	body, err := s.client.doRequest(ctx, "POST", "/emails", params)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (s *EmailsService) Send(ctx context.Context, params *SendEmailParams) (*Sen
 
 // SendMime sends a raw MIME email via the SendKit API.
 func (s *EmailsService) SendMime(ctx context.Context, params *SendMimeEmailParams) (*SendMimeEmailResponse, error) {
-	body, err := s.client.doRequest(ctx, "POST", "/v1/emails/mime", params)
+	body, err := s.client.doRequest(ctx, "POST", "/emails/mime", params)
 	if err != nil {
 		return nil, err
 	}
