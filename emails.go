@@ -34,6 +34,15 @@ type SendEmailParams struct {
 	Attachments []Attachment      `json:"attachments,omitempty"`
 }
 
+// NewSendEmailParams creates SendEmailParams with a single recipient.
+func NewSendEmailParams(from, to, subject string) *SendEmailParams {
+	return &SendEmailParams{
+		From:    from,
+		To:      []string{to},
+		Subject: subject,
+	}
+}
+
 // SendEmailResponse is the response from sending an email.
 type SendEmailResponse struct {
 	ID string `json:"id"`
