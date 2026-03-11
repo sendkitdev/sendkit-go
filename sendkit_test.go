@@ -204,6 +204,31 @@ func TestEmails_Send_APIError(t *testing.T) {
 	}
 }
 
+func TestNewSendEmailParams(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Hello")
+
+	if params.From != "sender@example.com" {
+		t.Errorf("expected from sender@example.com, got %s", params.From)
+	}
+	if len(params.To) != 1 || params.To[0] != "recipient@example.com" {
+		t.Errorf("expected to [recipient@example.com], got %v", params.To)
+	}
+	if params.Subject != "Hello" {
+		t.Errorf("expected subject Hello, got %s", params.Subject)
+	}
+}
+
+func TestNewSendEmailParams_DisplayName(t *testing.T) {
+	params := NewSendEmailParams("Support <sender@example.com>", "Bob <recipient@example.com>", "Hello")
+
+	if params.From != "Support <sender@example.com>" {
+		t.Errorf("expected from with display name, got %s", params.From)
+	}
+	if params.To[0] != "Bob <recipient@example.com>" {
+		t.Errorf("expected to with display name, got %s", params.To[0])
+	}
+}
+
 func TestEmails_Send_CustomBaseURL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
