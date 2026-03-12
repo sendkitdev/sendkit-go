@@ -229,6 +229,327 @@ func TestNewSendEmailParams_DisplayName(t *testing.T) {
 	}
 }
 
+func TestEmails_Send_MultipleRecipients(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		to, ok := payload["to"].([]any)
+		if !ok {
+			t.Fatal("expected to to be an array")
+		}
+		if len(to) != 3 {
+			t.Fatalf("expected 3 recipients, got %d", len(to))
+		}
+		if to[0] != "alice@example.com" {
+			t.Errorf("expected first recipient alice@example.com, got %v", to[0])
+		}
+		if to[1] != "bob@example.com" {
+			t.Errorf("expected second recipient bob@example.com, got %v", to[1])
+		}
+		if to[2] != "carol@example.com" {
+			t.Errorf("expected third recipient carol@example.com, got %v", to[2])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "multi-recipient-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"alice@example.com", "bob@example.com", "carol@example.com"},
+		Subject: "Test Multiple Recipients",
+		HTML:    "<p>Hello everyone</p>",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "multi-recipient-123" {
+		t.Fatalf("expected ID multi-recipient-123, got %s", resp.ID)
+	}
+}
+
+func TestEmails_Send_CcAndBcc(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		cc, ok := payload["cc"].([]any)
+		if !ok {
+			t.Fatal("expected cc to be an array")
+		}
+		if len(cc) != 2 {
+			t.Fatalf("expected 2 cc recipients, got %d", len(cc))
+		}
+		if cc[0] != "cc1@example.com" {
+			t.Errorf("expected first cc cc1@example.com, got %v", cc[0])
+		}
+		if cc[1] != "cc2@example.com" {
+			t.Errorf("expected second cc cc2@example.com, got %v", cc[1])
+		}
+
+		bcc, ok := payload["bcc"].([]any)
+		if !ok {
+			t.Fatal("expected bcc to be an array")
+		}
+		if len(bcc) != 1 {
+			t.Fatalf("expected 1 bcc recipient, got %d", len(bcc))
+		}
+		if bcc[0] != "bcc@example.com" {
+			t.Errorf("expected bcc bcc@example.com, got %v", bcc[0])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "cc-bcc-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "Test CC and BCC",
+		HTML:    "<p>Hello</p>",
+		CC:      []string{"cc1@example.com", "cc2@example.com"},
+		BCC:     []string{"bcc@example.com"},
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "cc-bcc-123" {
+		t.Fatalf("expected ID cc-bcc-123, got %s", resp.ID)
+	}
+}
+
+func TestEmails_Send_Attachments(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		attachments, ok := payload["attachments"].([]any)
+		if !ok {
+			t.Fatal("expected attachments to be an array")
+		}
+		if len(attachments) != 2 {
+			t.Fatalf("expected 2 attachments, got %d", len(attachments))
+		}
+
+		att1, ok := attachments[0].(map[string]any)
+		if !ok {
+			t.Fatal("expected attachment to be an object")
+		}
+		if att1["filename"] != "report.pdf" {
+			t.Errorf("expected filename report.pdf, got %v", att1["filename"])
+		}
+		if att1["content"] != "base64-pdf-content" {
+			t.Errorf("expected content base64-pdf-content, got %v", att1["content"])
+		}
+		if att1["content_type"] != "application/pdf" {
+			t.Errorf("expected content_type application/pdf, got %v", att1["content_type"])
+		}
+
+		att2, ok := attachments[1].(map[string]any)
+		if !ok {
+			t.Fatal("expected attachment to be an object")
+		}
+		if att2["filename"] != "image.png" {
+			t.Errorf("expected filename image.png, got %v", att2["filename"])
+		}
+		if att2["content"] != "base64-png-content" {
+			t.Errorf("expected content base64-png-content, got %v", att2["content"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "attachment-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "Test Attachments",
+		HTML:    "<p>See attached</p>",
+		Attachments: []Attachment{
+			{Filename: "report.pdf", Content: "base64-pdf-content", ContentType: "application/pdf"},
+			{Filename: "image.png", Content: "base64-png-content"},
+		},
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "attachment-123" {
+		t.Fatalf("expected ID attachment-123, got %s", resp.ID)
+	}
+}
+
+func TestEmails_Send_Tags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		tags, ok := payload["tags"].([]any)
+		if !ok {
+			t.Fatal("expected tags to be an array")
+		}
+		if len(tags) != 3 {
+			t.Fatalf("expected 3 tags, got %d", len(tags))
+		}
+		if tags[0] != "welcome" {
+			t.Errorf("expected first tag welcome, got %v", tags[0])
+		}
+		if tags[1] != "onboarding" {
+			t.Errorf("expected second tag onboarding, got %v", tags[1])
+		}
+		if tags[2] != "transactional" {
+			t.Errorf("expected third tag transactional, got %v", tags[2])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "tags-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "Test Tags",
+		HTML:    "<p>Hello</p>",
+		Tags:    []string{"welcome", "onboarding", "transactional"},
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "tags-123" {
+		t.Fatalf("expected ID tags-123, got %s", resp.ID)
+	}
+}
+
+func TestEmails_Send_TextField(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		if payload["text"] != "Hello plain text" {
+			t.Errorf("expected text to be Hello plain text, got %v", payload["text"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "text-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "Test Text Field",
+		Text:    "Hello plain text",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "text-123" {
+		t.Fatalf("expected ID text-123, got %s", resp.ID)
+	}
+}
+
+func TestEmails_Send_Headers(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		headers, ok := payload["headers"].(map[string]any)
+		if !ok {
+			t.Fatal("expected headers to be an object")
+		}
+		if headers["X-Custom-Header"] != "value" {
+			t.Errorf("expected X-Custom-Header to be value, got %v", headers["X-Custom-Header"])
+		}
+		if headers["X-Track"] != "123" {
+			t.Errorf("expected X-Track to be 123, got %v", headers["X-Track"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "headers-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "Test Headers",
+		HTML:    "<p>Hello</p>",
+		Headers: map[string]string{"X-Custom-Header": "value", "X-Track": "123"},
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "headers-123" {
+		t.Fatalf("expected ID headers-123, got %s", resp.ID)
+	}
+}
+
+func TestEmails_Send_OmitsNullFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		omittedKeys := []string{"text", "cc", "bcc", "reply_to", "headers", "tags", "scheduled_at", "attachments"}
+		for _, key := range omittedKeys {
+			if _, ok := payload[key]; ok {
+				t.Errorf("expected key %q to be omitted from JSON body, but it was present", key)
+			}
+		}
+
+		if payload["from"] != "sender@example.com" {
+			t.Errorf("expected from to be sender@example.com, got %v", payload["from"])
+		}
+		if payload["subject"] != "Required Only" {
+			t.Errorf("expected subject to be Required Only, got %v", payload["subject"])
+		}
+		if payload["html"] != "<p>Hello</p>" {
+			t.Errorf("expected html to be <p>Hello</p>, got %v", payload["html"])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "omit-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	resp, err := client.Emails.Send(context.Background(), &SendEmailParams{
+		From:    "sender@example.com",
+		To:      []string{"recipient@example.com"},
+		Subject: "Required Only",
+		HTML:    "<p>Hello</p>",
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "omit-123" {
+		t.Fatalf("expected ID omit-123, got %s", resp.ID)
+	}
+}
+
 func TestEmails_Send_CustomBaseURL(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
