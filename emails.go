@@ -11,6 +11,12 @@ type EmailsService struct {
 	client *Client
 }
 
+// Tag represents an email tag with a name and value.
+type Tag struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
 // Attachment represents an email attachment.
 type Attachment struct {
 	Filename    string `json:"filename"`
@@ -29,7 +35,7 @@ type SendEmailParams struct {
 	BCC         []string          `json:"bcc,omitempty"`
 	ReplyTo     string            `json:"reply_to,omitempty"`
 	Headers     map[string]string `json:"headers,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
+	Tags        []Tag             `json:"tags,omitempty"`
 	ScheduledAt string            `json:"scheduled_at,omitempty"`
 	Attachments []Attachment      `json:"attachments,omitempty"`
 }

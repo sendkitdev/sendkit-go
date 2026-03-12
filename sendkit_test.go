@@ -401,17 +401,30 @@ func TestEmails_Send_Tags(t *testing.T) {
 		if !ok {
 			t.Fatal("expected tags to be an array")
 		}
-		if len(tags) != 3 {
-			t.Fatalf("expected 3 tags, got %d", len(tags))
+		if len(tags) != 2 {
+			t.Fatalf("expected 2 tags, got %d", len(tags))
 		}
-		if tags[0] != "welcome" {
-			t.Errorf("expected first tag welcome, got %v", tags[0])
+
+		tag1, ok := tags[0].(map[string]any)
+		if !ok {
+			t.Fatal("expected tag to be an object")
 		}
-		if tags[1] != "onboarding" {
-			t.Errorf("expected second tag onboarding, got %v", tags[1])
+		if tag1["name"] != "category" {
+			t.Errorf("expected first tag name category, got %v", tag1["name"])
 		}
-		if tags[2] != "transactional" {
-			t.Errorf("expected third tag transactional, got %v", tags[2])
+		if tag1["value"] != "welcome" {
+			t.Errorf("expected first tag value welcome, got %v", tag1["value"])
+		}
+
+		tag2, ok := tags[1].(map[string]any)
+		if !ok {
+			t.Fatal("expected tag to be an object")
+		}
+		if tag2["name"] != "campaign" {
+			t.Errorf("expected second tag name campaign, got %v", tag2["name"])
+		}
+		if tag2["value"] != "onboarding" {
+			t.Errorf("expected second tag value onboarding, got %v", tag2["value"])
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -425,7 +438,10 @@ func TestEmails_Send_Tags(t *testing.T) {
 		To:      []string{"recipient@example.com"},
 		Subject: "Test Tags",
 		HTML:    "<p>Hello</p>",
-		Tags:    []string{"welcome", "onboarding", "transactional"},
+		Tags: []Tag{
+			{Name: "category", Value: "welcome"},
+			{Name: "campaign", Value: "onboarding"},
+		},
 	})
 
 	if err != nil {
