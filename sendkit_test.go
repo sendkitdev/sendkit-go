@@ -102,8 +102,12 @@ func TestEmails_Send_SnakeCaseFields(t *testing.T) {
 		var payload map[string]any
 		json.Unmarshal(body, &payload)
 
-		if payload["reply_to"] != "reply@example.com" {
-			t.Errorf("expected reply_to to be reply@example.com, got %v", payload["reply_to"])
+		replyTo, ok := payload["reply_to"].([]any)
+		if !ok {
+			t.Fatal("expected reply_to to be an array")
+		}
+		if len(replyTo) != 1 || replyTo[0] != "reply@example.com" {
+			t.Errorf("expected reply_to to be [reply@example.com], got %v", replyTo)
 		}
 		if payload["scheduled_at"] != "2026-03-01T10:00:00Z" {
 			t.Errorf("expected scheduled_at to be 2026-03-01T10:00:00Z, got %v", payload["scheduled_at"])
@@ -120,7 +124,7 @@ func TestEmails_Send_SnakeCaseFields(t *testing.T) {
 		To:          []string{"recipient@example.com"},
 		Subject:     "Test",
 		HTML:        "<p>Hi</p>",
-		ReplyTo:     "reply@example.com",
+		ReplyTo:     []string{"reply@example.com"},
 		ScheduledAt: "2026-03-01T10:00:00Z",
 	})
 
@@ -563,6 +567,365 @@ func TestEmails_Send_OmitsNullFields(t *testing.T) {
 	}
 	if resp.ID != "omit-123" {
 		t.Fatalf("expected ID omit-123, got %s", resp.ID)
+	}
+}
+
+func TestSetReplyTo_SingleAddress(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetReplyTo("reply@example.com")
+
+	if len(params.ReplyTo) != 1 {
+		t.Fatalf("expected 1 reply_to address, got %d", len(params.ReplyTo))
+	}
+	if params.ReplyTo[0] != "reply@example.com" {
+		t.Errorf("expected reply@example.com, got %s", params.ReplyTo[0])
+	}
+}
+
+func TestSetReplyTo_MultipleAddresses(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetReplyTo("reply1@example.com", "reply2@example.com")
+
+	if len(params.ReplyTo) != 2 {
+		t.Fatalf("expected 2 reply_to addresses, got %d", len(params.ReplyTo))
+	}
+	if params.ReplyTo[0] != "reply1@example.com" {
+		t.Errorf("expected reply1@example.com, got %s", params.ReplyTo[0])
+	}
+	if params.ReplyTo[1] != "reply2@example.com" {
+		t.Errorf("expected reply2@example.com, got %s", params.ReplyTo[1])
+	}
+}
+
+func TestSetReplyTo_Chaining(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetReplyTo("reply@example.com")
+
+	if params.From != "sender@example.com" {
+		t.Errorf("expected from sender@example.com, got %s", params.From)
+	}
+	if len(params.ReplyTo) != 1 || params.ReplyTo[0] != "reply@example.com" {
+		t.Errorf("expected reply_to [reply@example.com], got %v", params.ReplyTo)
+	}
+}
+
+func TestSetReplyTo_SerializesToJSON(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetReplyTo("reply@example.com")
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var payload map[string]any
+	json.Unmarshal(data, &payload)
+
+	replyTo, ok := payload["reply_to"].([]any)
+	if !ok {
+		t.Fatal("expected reply_to to be an array in JSON")
+	}
+	if len(replyTo) != 1 || replyTo[0] != "reply@example.com" {
+		t.Errorf("expected reply_to [reply@example.com] in JSON, got %v", replyTo)
+	}
+}
+
+func TestSetCC_SingleAddress(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetCC("cc@example.com")
+
+	if len(params.CC) != 1 {
+		t.Fatalf("expected 1 cc address, got %d", len(params.CC))
+	}
+	if params.CC[0] != "cc@example.com" {
+		t.Errorf("expected cc@example.com, got %s", params.CC[0])
+	}
+}
+
+func TestSetCC_MultipleAddresses(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetCC("cc1@example.com", "cc2@example.com", "cc3@example.com")
+
+	if len(params.CC) != 3 {
+		t.Fatalf("expected 3 cc addresses, got %d", len(params.CC))
+	}
+	if params.CC[0] != "cc1@example.com" {
+		t.Errorf("expected cc1@example.com, got %s", params.CC[0])
+	}
+	if params.CC[1] != "cc2@example.com" {
+		t.Errorf("expected cc2@example.com, got %s", params.CC[1])
+	}
+	if params.CC[2] != "cc3@example.com" {
+		t.Errorf("expected cc3@example.com, got %s", params.CC[2])
+	}
+}
+
+func TestSetCC_SingleAddress_SerializesToJSONArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		cc, ok := payload["cc"].([]any)
+		if !ok {
+			t.Fatal("expected cc to be an array in JSON")
+		}
+		if len(cc) != 1 {
+			t.Fatalf("expected 1 cc entry, got %d", len(cc))
+		}
+		if cc[0] != "cc@example.com" {
+			t.Errorf("expected cc@example.com, got %v", cc[0])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "cc-single-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetCC("cc@example.com")
+	params.HTML = "<p>Hello</p>"
+
+	resp, err := client.Emails.Send(context.Background(), params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "cc-single-123" {
+		t.Fatalf("expected ID cc-single-123, got %s", resp.ID)
+	}
+}
+
+func TestSetCC_MultipleAddresses_SerializesToJSONArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		cc, ok := payload["cc"].([]any)
+		if !ok {
+			t.Fatal("expected cc to be an array in JSON")
+		}
+		if len(cc) != 2 {
+			t.Fatalf("expected 2 cc entries, got %d", len(cc))
+		}
+		if cc[0] != "cc1@example.com" {
+			t.Errorf("expected cc1@example.com, got %v", cc[0])
+		}
+		if cc[1] != "cc2@example.com" {
+			t.Errorf("expected cc2@example.com, got %v", cc[1])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "cc-multi-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetCC("cc1@example.com", "cc2@example.com")
+	params.HTML = "<p>Hello</p>"
+
+	resp, err := client.Emails.Send(context.Background(), params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "cc-multi-123" {
+		t.Fatalf("expected ID cc-multi-123, got %s", resp.ID)
+	}
+}
+
+func TestSetBCC_SingleAddress(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetBCC("bcc@example.com")
+
+	if len(params.BCC) != 1 {
+		t.Fatalf("expected 1 bcc address, got %d", len(params.BCC))
+	}
+	if params.BCC[0] != "bcc@example.com" {
+		t.Errorf("expected bcc@example.com, got %s", params.BCC[0])
+	}
+}
+
+func TestSetBCC_MultipleAddresses(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test")
+	params.SetBCC("bcc1@example.com", "bcc2@example.com")
+
+	if len(params.BCC) != 2 {
+		t.Fatalf("expected 2 bcc addresses, got %d", len(params.BCC))
+	}
+	if params.BCC[0] != "bcc1@example.com" {
+		t.Errorf("expected bcc1@example.com, got %s", params.BCC[0])
+	}
+	if params.BCC[1] != "bcc2@example.com" {
+		t.Errorf("expected bcc2@example.com, got %s", params.BCC[1])
+	}
+}
+
+func TestSetBCC_SingleAddress_SerializesToJSONArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		bcc, ok := payload["bcc"].([]any)
+		if !ok {
+			t.Fatal("expected bcc to be an array in JSON")
+		}
+		if len(bcc) != 1 {
+			t.Fatalf("expected 1 bcc entry, got %d", len(bcc))
+		}
+		if bcc[0] != "bcc@example.com" {
+			t.Errorf("expected bcc@example.com, got %v", bcc[0])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "bcc-single-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetBCC("bcc@example.com")
+	params.HTML = "<p>Hello</p>"
+
+	resp, err := client.Emails.Send(context.Background(), params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "bcc-single-123" {
+		t.Fatalf("expected ID bcc-single-123, got %s", resp.ID)
+	}
+}
+
+func TestSetBCC_MultipleAddresses_SerializesToJSONArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		bcc, ok := payload["bcc"].([]any)
+		if !ok {
+			t.Fatal("expected bcc to be an array in JSON")
+		}
+		if len(bcc) != 2 {
+			t.Fatalf("expected 2 bcc entries, got %d", len(bcc))
+		}
+		if bcc[0] != "bcc1@example.com" {
+			t.Errorf("expected bcc1@example.com, got %v", bcc[0])
+		}
+		if bcc[1] != "bcc2@example.com" {
+			t.Errorf("expected bcc2@example.com, got %v", bcc[1])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "bcc-multi-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetBCC("bcc1@example.com", "bcc2@example.com")
+	params.HTML = "<p>Hello</p>"
+
+	resp, err := client.Emails.Send(context.Background(), params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "bcc-multi-123" {
+		t.Fatalf("expected ID bcc-multi-123, got %s", resp.ID)
+	}
+}
+
+func TestSetReplyTo_SingleAddress_SerializesToJSONArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		replyTo, ok := payload["reply_to"].([]any)
+		if !ok {
+			t.Fatal("expected reply_to to be an array in JSON")
+		}
+		if len(replyTo) != 1 {
+			t.Fatalf("expected 1 reply_to entry, got %d", len(replyTo))
+		}
+		if replyTo[0] != "reply@example.com" {
+			t.Errorf("expected reply@example.com, got %v", replyTo[0])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "reply-single-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetReplyTo("reply@example.com")
+	params.HTML = "<p>Hello</p>"
+
+	resp, err := client.Emails.Send(context.Background(), params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "reply-single-123" {
+		t.Fatalf("expected ID reply-single-123, got %s", resp.ID)
+	}
+}
+
+func TestSetReplyTo_MultipleAddresses_SerializesToJSONArray(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		json.Unmarshal(body, &payload)
+
+		replyTo, ok := payload["reply_to"].([]any)
+		if !ok {
+			t.Fatal("expected reply_to to be an array in JSON")
+		}
+		if len(replyTo) != 2 {
+			t.Fatalf("expected 2 reply_to entries, got %d", len(replyTo))
+		}
+		if replyTo[0] != "reply1@example.com" {
+			t.Errorf("expected reply1@example.com, got %v", replyTo[0])
+		}
+		if replyTo[1] != "reply2@example.com" {
+			t.Errorf("expected reply2@example.com, got %v", replyTo[1])
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"id": "reply-multi-123"})
+	}))
+	defer server.Close()
+
+	client, _ := NewClient("sk_test_123", WithBaseURL(server.URL))
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetReplyTo("reply1@example.com", "reply2@example.com")
+	params.HTML = "<p>Hello</p>"
+
+	resp, err := client.Emails.Send(context.Background(), params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.ID != "reply-multi-123" {
+		t.Fatalf("expected ID reply-multi-123, got %s", resp.ID)
+	}
+}
+
+func TestSetCC_Chaining(t *testing.T) {
+	params := NewSendEmailParams("sender@example.com", "recipient@example.com", "Test").
+		SetCC("cc@example.com").
+		SetBCC("bcc@example.com").
+		SetReplyTo("reply@example.com")
+
+	if len(params.CC) != 1 || params.CC[0] != "cc@example.com" {
+		t.Errorf("expected cc [cc@example.com], got %v", params.CC)
+	}
+	if len(params.BCC) != 1 || params.BCC[0] != "bcc@example.com" {
+		t.Errorf("expected bcc [bcc@example.com], got %v", params.BCC)
+	}
+	if len(params.ReplyTo) != 1 || params.ReplyTo[0] != "reply@example.com" {
+		t.Errorf("expected reply_to [reply@example.com], got %v", params.ReplyTo)
 	}
 }
 

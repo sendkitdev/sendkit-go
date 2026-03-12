@@ -33,7 +33,7 @@ type SendEmailParams struct {
 	Text        string            `json:"text,omitempty"`
 	CC          []string          `json:"cc,omitempty"`
 	BCC         []string          `json:"bcc,omitempty"`
-	ReplyTo     string            `json:"reply_to,omitempty"`
+	ReplyTo     []string          `json:"reply_to,omitempty"`
 	Headers     map[string]string `json:"headers,omitempty"`
 	Tags        []Tag             `json:"tags,omitempty"`
 	ScheduledAt string            `json:"scheduled_at,omitempty"`
@@ -47,6 +47,27 @@ func NewSendEmailParams(from, to, subject string) *SendEmailParams {
 		To:      []string{to},
 		Subject: subject,
 	}
+}
+
+// SetReplyTo is a convenience method that sets the ReplyTo field.
+// It accepts one or more email addresses.
+func (p *SendEmailParams) SetReplyTo(addresses ...string) *SendEmailParams {
+	p.ReplyTo = addresses
+	return p
+}
+
+// SetCC is a convenience method that sets the CC field.
+// It accepts one or more email addresses.
+func (p *SendEmailParams) SetCC(cc ...string) *SendEmailParams {
+	p.CC = cc
+	return p
+}
+
+// SetBCC is a convenience method that sets the BCC field.
+// It accepts one or more email addresses.
+func (p *SendEmailParams) SetBCC(bcc ...string) *SendEmailParams {
+	p.BCC = bcc
+	return p
 }
 
 // SendEmailResponse is the response from sending an email.
