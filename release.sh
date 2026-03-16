@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-CURRENT=$(git tag --sort=-v:refnum | head -1)
+CURRENT=$(git tag --sort=-v:refname | head -1)
 
 if [ -z "$CURRENT" ]; then
   echo "No existing tags found. Cannot auto-increment."
